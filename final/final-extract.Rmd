@@ -1,0 +1,166 @@
+---
+title: "Quant Final Project"
+output: word_document
+---
+
+# Initialize and Import
+
+```{r init}
+# load packages
+library(tidyverse)
+
+# load data
+# 2010
+load("D:/Documents/Winter 2017/Quantitative Methods/Final/SAMHSA Data/NSDUH-2010-DS0001-data/NSDUH-2010-DS0001-data-r.rda")
+
+df_10 <- da32722.0001
+
+# 2011
+load("D:/Documents/Winter 2017/Quantitative Methods/Final/SAMHSA Data/NSDUH-2011-DS0001-data/NSDUH-2011-DS0001-data-r.rda")
+
+df_11 <- da34481.0001
+
+# 2012
+load("D:/Documents/Winter 2017/Quantitative Methods/Final/SAMHSA Data/NSDUH-2012-DS0001-data/NSDUH-2012-DS0001-data-r.rda")
+
+df_12 <- da34933.0001
+
+# 2013
+load("D:/Documents/Winter 2017/Quantitative Methods/Final/SAMHSA Data/NSDUH-2013-DS0001-data/NSDUH-2013-DS0001-data-r.rda")
+
+df_13 <- da35509.0001
+
+# 2014
+load("D:/Documents/Winter 2017/Quantitative Methods/Final/SAMHSA Data/NSDUH-2014-DS0001-data/NSDUH-2014-DS0001-data-r.rda")
+
+df_14 <- da36361.0001
+
+# remove unused dfs
+keep <- c("df_10", "df_11", "df_12", "df_13", "df_14")
+rm(list = setdiff(ls(), keep))
+```
+
+# Processing Function
+
+```{r processing}
+process_samhsa <- function(x) {
+ 
+   # colnames to lower case
+  colnames(x) <- tolower(colnames(x))
+  
+  # make columns character columns
+  x <- mutate_each(x, funs = as.character())
+  
+  # select relevant columns
+  x <- x %>%
+    select(ircigrc,  # cigs 12 mons
+           iralcrc,  # alc 12 mons
+           irmjrc,   # marijuana 12 mons
+           ircocrc,  # cocaine 12 mons
+           ircrkrc,  # crack 12 mons
+           irherrc,  # heroin 12 mons
+           iranlrc,  # pain-killers 12 mons
+           irtrnrc,  # tranquilizers 12 mons
+           irstmrc,  # stimulants 12 mons
+           irsedrc,  # sedatives 12 mons
+           booked,   # ever arrested
+           txever,   # ever received SA Tx
+           anxdlif,  # ever had anxiety
+           deprslif, # ever had depression
+           stdslif,  # ever had STD
+           auoptyr,  # in patient MH Tx 12 mons
+           auinpyr,  # out patient MH Tx 12 mons
+           aualtyr,  # other MH Tx 12 mons
+           amhtxrc3, # any MH Tx 12 mons
+           snysell,  # sold illegal drugs 12 mons
+           snystole, # stole anything 12 mons
+           snyattak, # attacked someone 12 mons
+           spdyr,    # serious psychological distress 12 mons
+           amiyr_u,  # predicted mental illness 12 mons
+           mi_cat_u, # categorical mental illness 12 mons
+           amida2_u, # any mental illness and abuse/dependence 12 mons
+           income,   # family income 
+           catag7,   # age (7 category)
+           irsex,    # gender
+           educcat2, # education level
+           pregage2, # pregnancy age categories
+           newrace2, # race
+           empstaty, # employment status
+           coutyp2   # county type
+           )
+  
+  # keep only numeric characters
+  x <- data.frame(lapply(x, function(y){
+    y <- gsub("\\(([0-9+]).*", "\\1", y)
+  }))
+  
+  # remove NAs
+  x <- na.omit(x)
+  
+  # recode numeric variable levels
+  x[,1:10] <- data.frame(lapply(x[,1:10], function(x){
+    if_else(x == "1" | x == "2", TRUE, FALSE)
+  }))
+  
+  x[,11:26] <- data.frame(lapply(x[,11:26], function(x){
+    if_else(x == "1", TRUE, FALSE)
+  }))
+  
+  x$income <- factor(x$income, 
+                     levels = c("1", "2", "3", "4"), 
+                     labels = c("<20K", "20K-50K", "50K-75K", ">75K"))
+  
+  x$catag7 <- factor(x$catag7, 
+                      levels = c("1", "2", "3", "4", "5", "6", "7"), 
+                      labels = c("12-13", "14-15", "16-17", "18-20", "21-25", "26-34", ">35"))
+  
+  x$irsex <- factor(x$irsex , 
+                      levels = c("1", "2"), 
+                      labels = c("Male", "Female"))
+    
+  x$educcat2 <- factor(x$educcat2 , 
+                      levels = c("1", "2", "3", "4", "5"), 
+                      labels = c("<HS", "HS", "Some College", "College", "Too Young"))
+    
+  x$pregage2 <- factor(x$pregage2 , 
+                      levels = c("1", "2", "3", "4"), 
+                      labels = c("15-17", "18-25", "26-44", "Other"))
+
+  x$newrace2 <- factor(x$newrace2, 
+                      levels = c("1", "2", "3", "4", "5", "6", "7"), 
+                      labels = c("White", "Black", "Native AM", "Native PI", "Asian", "Mixed", "Hispanic"))
+  
+  x$empstaty <- factor(x$empstaty, 
+                      levels = c("1", "2", "3", "4", "99"), 
+                      labels = c("Full", "Part", "Unemployed", "Other", "Too Young")) 
+  
+  x$coutyp2 <- factor(x$coutyp2, 
+                      levels = c("1", "2", "3"), 
+                      labels = c("Large Metro", "Small Metro", "Nonmetro"))
+  
+  # return processed data frame
+  return(x)
+}
+```
+
+# Process and Combine Data
+
+```{r}
+df_10 <- process_samhsa(df_10)
+df_11 <- process_samhsa(df_11)
+df_12 <- process_samhsa(df_12)
+df_13 <- process_samhsa(df_13)
+df_14 <- process_samhsa(df_14)
+
+nsduh <- bind_rows(df_10, df_11, df_12, df_13, df_14, .id = "year")
+
+nsduh$year <- as.numeric(nsduh$year)
+
+nsduh <- nsduh %>% mutate(year = year + 2009)
+```
+
+# Write Date
+
+```{r}
+write.csv(nsduh, "D:/Documents/Winter 2017/Quantitative Methods/Final/SAMHSA Data/nsduh.csv", row.names = F)
+```
