@@ -1,0 +1,123 @@
+---
+title: "Homework 6"
+output: word_document
+---
+
+**Introduction**
+
+Resiliency theory argues that positive influences on an individual and positive resources at an individual's disposal will protect an individual from potentially risky behaviors. In adolescents, sexual initiation may be one such risky behavior. To assess how well one positive resource--parental social support--protected against sexual initiation, a logistic regression was conducted on data collected from adolescents in Flint, MI. My prediction was that increased parental social support would correspond to a decreased likelihood of sexual initiation among these adolescents. 
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+```{r init, include = FALSE}
+## Initialize and Import
+# load packages
+library(haven)
+library(dplyr)
+library(stats)
+library(knitr)
+library(ggplot2)
+
+# load data
+fas <- read_spss("C:/Users/Greg/Documents/Winter 2017/Quantitative Methods/Midterm/fasw1icpsr.sav")
+# fas <- read_spss("C:/Users/gbushman/Downloads/fasw1icpsr.sav")
+
+fas_age <- read_spss("C:/Users/Greg/Documents/Winter 2017/Quantitative Methods/Midterm/fasw1icpsr-age.sav")
+#fas_age <- read_spss("C:/Users/gbushman/Downloads/fasw1icpsr.age.sav")
+
+# join age to other data
+fas <- left_join(fas, fas_age)
+
+# clean up data
+colnames(fas) <- colnames(fas) %>% tolower()
+
+# filter data
+fas <- fas %>%
+  select(w1a2, w1a3, ageiw1,       # demographics
+         w1c3a:w1c3d, w1c3f,       # parental support
+         w1i_19)                   # sexual initiation
+
+# rename columns
+fas <- fas %>%
+  rename(
+    "sex"   = w1a2,
+    "race"  = w1a3,
+    "age"   = ageiw1,
+    "si"    = w1i_19
+  )
+
+# make parental support variable
+fas$ps <- rowMeans(fas %>% select(w1c3a:w1c3f))
+
+# select relevant columns
+fas <- fas %>% 
+  select(sex, race, si, age, ps)
+
+# make columns factors/numeric
+fas       <- data.frame(fas[,1:3], lapply(fas[,4:5], as.numeric))
+fas$sex   <- factor(fas$sex, levels = c(1, 2), labels = c("Male", "Female"))
+fas$race  <- factor(fas$race, levels = c(1, 2, 3), labels = c("Black", "White", "Mixed"))
+fas$si <- factor(fas$si, levels = c(1,2), labels = c("Yes", "No"))
+
+# specify reference categories
+fas$si  <- relevel(fas$si, "No")
+fas$sex <- relevel(fas$sex, "Female")
+```
+
+**Logit Model**
+
+```{r}
+# fit model
+fit <- glm(si ~ sex + race + age + ps, family = binomial(), data = fas)
+summary(fit)
+
+# table of results
+names <- names(fit$coefficients)
+logit <- unname(fit$coefficients)
+oddsr <- exp(logit)
+probs <- exp(logit)/(1+exp(logit))
+
+data.frame(names, logit, oddsr, probs) %>%
+  kable(digits = 4)
+
+# likelihood ratio test
+modelChi   <- fit$null.deviance - fit$deviance
+chidf      <- fit$df.null - fit$df.residual
+chisq.prob <- 1 - pchisq(modelChi, chidf)
+# modelChi; chidf; chisq.prob
+```
+
+Logistic regression shows that sex, race, age, and parental social support are all highly significant predictors of adolescent sexual initiation. Sex was the predictor most strongly associated with sexual initiation: males in the study were 1.8 times as likely as females to have had sex at the time they were surveyed. Age was the next strongest predictor of sexual initiation. A one unit increase in age corresponded to a 0.8 increase in the liklihood of having had sex. Compared to black participants, mixed race participants showed no significant difference in patterns of sexual initiation; however, white participants were 0.7 times less likely to have had sex compared to black participants in the study. Parental social support was similarly protective against sexual initiation. A one unit increase in parental social support was predictive of a 0.25 times decreased liklihood of sexual initiation.
+To test whether this model was significant compared to the null, a likelihood ratio test was conducted. The chi-square statistic for the difference between this model and the null was 86.2 with 5 degrees of freedom. This corresponded to a p-value of almost zero. Therefore, this model was significant compared to the null. 
+
+**Challenge Problem**
+
+```{r}
+reg_fas <- na.omit(fas)
+reg_fas$probs <- fitted(fit)
+
+reg_fas$age <- trunc(reg_fas$age)
+
+reg_fas <- reg_fas %>%
+  filter(sex == "Male") %>%
+  filter(race == "Black") %>%
+  filter(age == 15)
+
+ggplot(reg_fas, aes(x = ps, y = probs)) + 
+  geom_point() +
+  geom_smooth(method = "lm", se = F) +
+  theme_minimal() +
+  labs(x = "Parental Support", 
+       y = "Probability of Sex Initiation", 
+       title = "For 15 Year Old Black Males") +
+  coord_cartesian(xlim = c(1,5), ylim = c(0.5, 1.0))
+```
+
+This graph shows the probabilities of having had sex, for all 15 year old black males in the sample, stratified by parental support. When a linear fit is applied to these data, it is clear that increasing parental social support really does correspond to a decrease in the probability of sexual initiation. 
+
+**Discussion**
+
+Given these results, is seems safe to conclude that parental social support is a significant protective factor against sexual initiation. This confirms what resiliency theory would have hypothesized: that positive resources and influences protect vulnerable individuals from risky behaviors. To further understand how resiliency plays a part in the lives of adolescents from Flint, more positive factors should be tested for how they interact with or predict risky behaviors, like sexual initiation. Parental social support should also be examined further for how it predicts other risky behaviors.  
+Given that these analyses show that parental social support is protective against at least one risky behavior, it might be a good target for intervention. If, in fact, parental social support is protective against other risky behaviors as well, then an intervention aimed at increasing parental social support among this population could have important impacts on the safety and wellbeing of Flint adolescents. 
