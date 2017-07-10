@@ -159,7 +159,7 @@ nsduh$year <- as.numeric(nsduh$year)
 nsduh <- nsduh %>% mutate(year = year + 2009)
 ```
 
-# Write Date
+# Write Data
 
 ```{r}
 write.csv(nsduh, "D:/Documents/Winter 2017/Quantitative Methods/Final/SAMHSA Data/nsduh.csv", row.names = F)
