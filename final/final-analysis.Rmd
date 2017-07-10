@@ -1,0 +1,252 @@
+---
+title: "Quant Final Project"
+output: word_document
+---
+
+# Initialize and Import
+
+```{r init}
+# load packages
+library(tidyverse)
+library(arules)
+
+# read data
+df <- read.csv("D:/Documents/Winter 2017/Quantitative Methods/Final/SAMHSA Data/nsduh.csv")
+
+# rename cols and create new
+df <- df %>%
+  rename(
+    cigarettes    = ircigrc,
+    alcohol       = iralcrc,
+    marijuana     = irmjrc,
+    cocaine       = ircocrc,
+    crack         = ircrkrc,
+    heroin        = irherrc,
+    analgesics    = iranlrc,
+    tranquilizers = irtrnrc,
+    stimulants    = irstmrc,
+    sedatives     = irsedrc
+  ) %>%
+  mutate(`crack/cocaine`      = ifelse(crack           == TRUE | 
+                                        cocaine       == TRUE, 
+                                      TRUE, 
+                                      FALSE),
+         `prescription drugs` = ifelse(analgesics      == TRUE | 
+                                        tranquilizers == TRUE |
+                                        stimulants    == TRUE |
+                                        sedatives     == TRUE,
+                                      TRUE,
+                                      FALSE),
+         opioids              = ifelse(analgesics == TRUE |
+                                         heroin   == TRUE, 
+                                       TRUE,
+                                       FALSE),
+         `sedatives/tranquilizers`  = ifelse(tranquilizers == TRUE |
+                                         sedatives   == TRUE,
+                                       TRUE,
+                                       FALSE))
+```
+
+# Polysubstance Use with Opioids
+
+```{r}
+df_poly <- df %>%
+  select(cigarettes, alcohol, marijuana, 
+         cocaine, crack, tranquilizers, stimulants, 
+         sedatives, opioids) %>%
+  filter(opioids == TRUE)
+
+df_poly$poly <- rowSums(df_poly %>% select(cigarettes:sedatives))
+
+df_poly$polyL <- ifelse(df_poly$poly >= 1, TRUE, FALSE)
+```
+
+# Visualization
+
+```{r}
+# extra cols
+extra <- c("analgesics", "tranquilizers", "cocaine", "crack", "sedatives", "stimulants")
+
+# data frame to plot
+plot_df <- df %>%
+  select(year:sedatives, `crack/cocaine`, `prescription drugs`) %>%
+  gather(key = drug, value = used, -year) %>%
+  group_by(drug) %>%
+  summarise(respondents  = n(),
+            used_drugs   = sum(used),
+            percent_used = used_drugs/respondents * 100) %>%
+  ungroup() %>%
+  filter(!drug %in% extra)
+
+# factor drugs
+plot_df$drug <- as.factor(plot_df$drug)
+
+# order bars
+plot_df <- transform(plot_df,
+                     drug = reorder(drug, -percent_used))
+
+# plot
+plot_1 <- ggplot(plot_df, aes(x = drug, y = percent_used)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = round(percent_used, digits = 1), vjust = -0.5)) +
+  theme_minimal() +
+  labs(y = "% Who Used", x = "Substance") +
+  theme(axis.text.x = element_text(angle = 20, hjust = 1)) +
+  ylim(0, 100)
+
+plot_1
+```
+
+```{r}
+# extra cols
+keep <- c("analgesics", "sedatives/tranquilizers", "stimulants")
+
+# data frame to plot
+plot_df <- df %>%
+  select(year:sedatives, `crack/cocaine`, `prescription drugs`, `sedatives/tranquilizers`) %>%
+  gather(key = drug, value = used, -year) %>%
+  group_by(drug) %>%
+  summarise(respondents  = n(),
+            used_drugs   = sum(used),
+            percent_used = used_drugs/respondents * 100) %>%
+  ungroup() %>%
+  filter(drug %in% keep)
+
+# factor drugs
+plot_df$drug <- as.factor(plot_df$drug)
+
+# order bars
+plot_df <- transform(plot_df,
+                     drug = reorder(drug, -percent_used))
+
+# plot
+plot_2 <- ggplot(plot_df, aes(x = drug, y = percent_used)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = round(percent_used, digits = 1), vjust = -0.5)) +
+  theme_minimal() +
+  labs(y = "% Who Used", x = "Prescription Substance") +
+  theme(axis.text.x = element_text(angle = 20, hjust = 1)) +
+  ylim(0, 10)
+
+plot_2
+```
+
+# Association Rule Mining
+
+```{r}
+# ARM algorithm
+rules <- apriori(df %>% select(opioids, `sedatives/tranquilizers`, `crack/cocaine`, marijuana, alcohol, cigarettes), 
+                 parameter = list(conf = 0.6, supp = 0.01),
+                 appearance = list(rhs = "opioids", default = "lhs"),
+                 control = list(verbose = F)
+)
+
+# sort rules 
+rules.sorted <- sort(rules, by = "lift")
+
+# prune redundant rules
+rules.pruned <- rules.sorted[!is.redundant(rules.sorted)]
+
+# visualize rules
+plot(rules.sorted, method="paracoord", control=list(reorder=TRUE, col=grey.colors(3)))
+```
+
+```{r}
+# dataframe
+df2 <- df %>%
+  select(opioids, `sedatives/tranquilizers`, `crack/cocaine`, marijuana, alcohol, cigarettes) %>%
+  rename(
+    OP    = opioids,
+    `S/T` = `sedatives/tranquilizers`,
+    `C/C` = `crack/cocaine`,
+    MJ    = marijuana,
+    ALC   = alcohol,
+    CIG   = cigarettes
+  )
+
+# ARM algorithm
+rules2 <- apriori(df2, 
+                 parameter = list(conf = 0.6, supp = 0.01),
+                 appearance = list(rhs = "OP", default = "lhs"),
+                 control = list(verbose = F)
+)
+
+# sort rules 
+rules.sorted2 <- sort(rules2, by = "lift")
+
+# plot
+plot(rules.sorted2, method="graph", control = list(nodeCol = grey.colors(10), edgeCol = grey(.7), alpha = 1))
+```
+
+# Create New Variables Based on Rules
+
+```{r}
+df <- df %>%
+  mutate(rule1 = ifelse(opioids == T &
+                          `sedatives/tranquilizers` == T, 
+                        TRUE, 
+                        FALSE),
+         rule2 = ifelse(opioids == T &
+                          `sedatives/tranquilizers` == T &
+                          (alcohol == T |
+                             marijuana == T |
+                             cigarettes == T),
+                        TRUE,
+                        FALSE)
+  )
+```
+
+# Logistic Regression
+
+```{r}
+# select data
+logit_df <- df %>%
+  select(income, catag7, irsex, educcat2, newrace2, empstaty, coutyp2, rule1, rule2, opioids)
+
+logit_df$newrace2 <- as.character(logit_df$newrace2)  
+    
+logit_df <- logit_df %>%
+         mutate(race = ifelse(newrace2 == "Asian" |
+                         newrace2 == "Native AM" |
+                         newrace2 == "Native PI",
+                       "Other",
+                       newrace2),
+         race = ifelse(newrace2 == "Mixed",
+                       "Black",
+                       race))
+
+logit_df$race <- as.factor(logit_df$race)
+
+# model 1
+model1 <- glm(opioids ~ income + catag7 + irsex + educcat2 + race + empstaty + coutyp2, family=binomial(link='logit'), data=logit_df)
+
+summary(model1)
+
+# model 2
+model2 <- glm(rule1 ~ income + catag7 + irsex + educcat2 + race + empstaty + coutyp2, family=binomial(link='logit'), data=logit_df)
+
+summary(model2)
+
+# model 3
+model3 <- glm(rule2 ~ income + catag7 + irsex + educcat2 + race + empstaty + coutyp2, family=binomial(link='logit'), data=logit_df)
+
+summary(model3)
+```
+
+# Convert to Predicted Probabilities
+
+```{r}
+# table of results
+names <- names(model1$coefficients)
+logit <- unname(model1$coefficients)
+oddsr <- exp(logit)
+probs <- exp(logit)/(1+exp(logit))
+
+data.frame(names, logit, oddsr, probs) %>%
+  kable(digits = 4)
+
+# likelihood ratio test
+modelChi   <- model1$null.deviance - model1$deviance
+chidf      <- model1$df.null - model1$df.residual
+chisq.prob <- 1 - pchisq(modelChi, chidf)
+```
