@@ -1,0 +1,102 @@
+---
+title: "Homework 3"
+author: "Gregory Bushman"
+output: word_document
+---
+Homework 3: ANOVA Practice
+
+**Research Question and Hypothesis**
+
+Is there a relationship between race and exposure to violence? With regard to exposure to violence, are different racial groups statistically distinct populations? \newline
+I predict that racial differences will not contribute to statistically significant differences in exposures to violence among study participants. 
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+```{r initialize}
+# load packages
+library(car)
+library(ggplot2)
+library(psych)
+
+# import data
+fas <- read.csv("C:/Users/Greg/Documents/Winter 2017/Quantitative Methods/fas_wave1.csv", stringsAsFactors = FALSE)
+
+# factor/recode race variable
+fas$a3 <- factor(fas$a3, levels = c(1, 2, 3), labels = c("Black", "White", "Mixed"))
+```
+
+**Regression 1: Race and Fear of Violence in Neighborhood**
+
+With the exception of the Levene test, all of these tests suggest that we should accept the null hypothesis: that racial groups are not distinct populations with regard to their levels of fear about experiencing violence in their neighborhoods. The Levene test was the only test which suggested that these may be statistically distinct populations; however, given the weight of the other evidence, this seems unlikely. 
+
+```{r}
+# summary 
+with(fas, describeBy(e10d, group = a3))
+
+# regression
+r1 <- aov(e10d ~ a3, data = fas)
+summary(r1)
+
+# Welch test
+oneway.test(e10d ~ a3, data = fas)
+
+# Levene test 
+fasfac <- fas
+fasfac$a3 <- factor(fasfac$a3)
+leveneTest(e10d ~ a3, data = fasfac, center = "median")
+
+# pairwise t test
+pairwise.t.test(fas$e10d, fas$a3, paired = F, p.adjust.method = "bonferroni")
+```
+
+**Boxplot**
+
+```{r}
+# create box plot
+bp1 <- ggplot(fas, aes(factor(a3), e10d, color = factor(a3))) + 
+  geom_boxplot() +
+  theme(legend.position = "none") +
+  labs(x = "Race", y = "Response") +
+  ylim(1, 5)
+
+# box plot of responses
+bp1
+```
+
+**Regression 2: Race and Fears of Violence at School**
+
+Again, all of these tests suggest that we should accept the null hypothesis: that racial groups are not distinct populations with regard to their levels of fear about experiencing violence at school.
+
+```{r}
+# summary 
+with(fas, describeBy(e10n, group = a3))
+
+# regression
+r2 <- aov(e10n ~ a3, data = fas)
+summary(r2)
+
+# Welch test
+oneway.test(e10n ~ a3, data = fas)
+
+# Levene test 
+leveneTest(e10n ~ a3, data = fasfac, center = "median")
+
+# pairwise t test
+pairwise.t.test(fas$e10n, fas$a3, paired = F, p.adjust.method = "bonferroni")
+```
+
+**Boxplot**
+
+```{r}
+# create box plot
+bp2 <- ggplot(fas, aes(factor(a3), e10n, color = factor(a3))) + 
+  geom_boxplot() +
+  theme(legend.position = "none") +
+  labs(x = "Race", y = "Response") +
+  ylim(1, 5)
+
+# box plot of responses
+bp2
+```
