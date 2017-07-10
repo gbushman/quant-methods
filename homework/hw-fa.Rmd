@@ -1,0 +1,153 @@
+---
+title: "Factor Analysis"
+output:
+  word_document: default
+---
+
+**Introduction**
+
+The family environment scale is used to measure the environment in which children are developing. I predict that the scale will be reliable within the population surveyed by the Flint Adolescent Study. Moreover, I predict that there will be a relationship between family environmnet and academic acheivement among youths involved in the study. To test this, I will conduct a factor analysis of the measure to assess its reliability for this population, and then I will use the measure to perform a regression analysis. 
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(warnings = F, messages = F)
+```
+
+```{r, include = FALSE}
+# Initialize and import
+# load packages
+library(dplyr)
+library(psych)
+library(psy)
+library(car)
+library(corrplot)
+library(GGally)
+
+# open R data
+load("C:/Users/Greg/Documents/Winter 2017/Quantitative Methods/fas.rda")
+fas <- da34598.0001
+```
+
+```{r, include = FALSE}
+# Prep data
+# colnames to lower
+colnames(fas) <- tolower(colnames(fas))
+
+# subset family environment measures
+fem <- fas %>%
+  select(w1g2a:w1g2h, w1g2j:w1g2m, w1g2o)
+
+# names
+colnames <- colnames(fem)
+
+# as numeric variables
+femnum <- data.frame(lapply(fem, as.numeric))
+
+# recode
+femnum$w1g2h <- recode(femnum$w1g2h, '1=4; 2=3; 3=2; 4=1; else = NA', as.numeric = T)
+```
+
+**Reliability**
+
+Initial low reliability (alpha = 0.3) suggests that not all the items of the family environment measure hang together. However, using the alpha function from the psych package flashes a warning message, indicating that some of the variables are reversely correlated with the rest. When the alpha is calculated again with the "check.keys" option set to true, the alpha jumps to 0.72. This is also an indicator that there may be more than one factor within this meaure. Still, based on this, it seems that the measure may not be wholly reliable for our sample. 
+
+```{r}
+# summarize
+with(femnum, summary(femnum[colnames]))
+
+# correlation
+corrplot(cor(femnum, use = "complete.obs"), method = "square")
+
+# reliability
+alpha(cov(femnum[colnames], use = "complete.obs"))
+
+# cronbach alpha
+cronbach(femnum)
+```
+
+**Factor Analysis**
+
+First, I ran a principal component analysis to get an idea of how many factors might be contained in the family environment measure. Because the proportion of variance explained begins to taper off after the second or third component, I ran the factor analysis twice: once with two factors, and once with three factors. The two factor analysis had better loading, and a more significant p-value. This suggests that there may not really be three highly distinct factors within the family environment measure. Based on the variables that loaded onto each factor, it seems that anger is its own factor; however, family fun and family decision making are not as clearly separate factors.  
+
+```{r}
+# principal component analysis
+femnum.pca <- princomp(~., data = femnum)
+summary(femnum.pca)
+plot(femnum.pca)
+
+# factor analysis
+fa.2 <- factanal(~., data = femnum, factors = 2, rotation = "varimax", scores = "none")
+print(fa.2)
+
+# factor analysis
+fa.3 <- factanal(~., data = femnum, factors = 3, rotation = "varimax", scores = "none")
+print(fa.3)
+```
+
+**Overall Statistics/Reliability**
+
+The alpha coefficient for the anger scale is 0.76, which is the highest reliability of any of the three scales. For family decision making, alpha was 0.51; and for family fun, alpha was 0.38. While the factor analysis suggested that there was in fact more than one factor at play in the family environment measure, it appears that only the anger subscale was highly reliable for our population. 
+
+```{r}
+# anger
+anger <- femnum %>%
+  select(w1g2a, w1g2c, w1g2d, w1g2e, w1g2g)
+
+summary(anger)
+alpha(cov(anger, use = "complete.obs"))
+
+# family decision making
+fdm <- femnum %>%
+  select(w1g2b, w1g2h, w1g2j, w1g2k, w1g2l)
+
+summary(fdm)
+alpha(cov(fdm, use = "complete.obs"))
+
+# family fun
+ff <- femnum %>%
+  select(w1g2f, w1g2o, w1g2m)
+
+summary(ff)
+alpha(cov(ff, use = "complete.obs"))
+```
+
+```{r, include = FALSE}
+# Create new variables
+# based on scales
+femnum <- femnum %>%
+  mutate(
+    anger = rowMeans(.[c("w1g2a", "w1g2c", "w1g2d", "w1g2e", "w1g2g")], na.rm = T),
+    fdm   = rowMeans(.[c("w1g2b", "w1g2h", "w1g2j", "w1g2k", "w1g2l")], na.rm = T),
+    ff    = rowMeans(.[c("w1g2f", "w1g2o", "w1g2m")], na.rm = T)
+  )
+
+# age
+femnum$gpa <- fas$w1e8
+femnum$gpa <- as.numeric(femnum$gpa)
+femnum$gpa <- recode(femnum$gpa, '9=1; 8=2; 7=3; 6=4; 5=5; 4=6; 3=7; 2=8; 1=9; else=NA', as.numeric = T)
+
+#sex
+femnum$sex <- fas$w1a2
+
+#race
+femnum$race <- fas$w1a3
+```
+
+**Run Regression**
+
+Because the anger subscale was the most reliable factor in our population, I used this scale in a regression analysis, looking at family anger, sex, and race as predictors for a child's grades. Based on this regression analysis, it seems that family anger and sex are both significant predictors of a child's grades. While family anger contributed to a decrease in GPA, being female was predictive of better grades. Race, however, was not a significant predictor of a child's grades. The diagnostic plots show that the regression was successful and met the assumptions of regression. That is, the residuals were normally distributed and had a linear pattern, they residuals were spread equally along the predictors, and there were no serious outliers that may have affected the results. There also appears to be low multicolinearity among the variables tested in this model. 
+
+```{r}
+# regression
+reg <- lm(gpa ~ anger + sex + race, data = femnum)
+
+# summary
+summary(reg)
+
+# plots
+plot(reg)
+
+# test assumptions
+femnum %>%
+  select(gpa, anger, sex, race) %>%
+  ggpairs()
+```
