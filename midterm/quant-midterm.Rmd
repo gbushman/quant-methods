@@ -1,0 +1,461 @@
+---
+title: "Quantitative Methods Midterm"
+output: word_document
+---
+
+**Introduction**
+
+Researchers have shown that social support may serve to improve mental health among adolescents. It has been suggested that the effects of social support on mental health are independent of the source of the social support (e.g., friends, parents); however, before intervention programs are developed to improve adolescent mental health by improving social support between friends, it is important to ensure that social support provided by friends really does have a significant effect on mental health outcomes in an adolescent population. That is why examining survey data collected from high school students about their mental health and experiences of social support is an important step which should come before the intervention development process.  
+I predicted that friend support and parental support would have similar effects on mental health outcomes in an adolescent population, making social support provided by friends an appropriate target for interventions aimed at improving adolescent mental health. Unfortunately, it seems that friend support may be weakly correlated with worse mental health outcomes, while parental support is much more strongly correlated with improved mental health outcomes in this population. This means that parental support may be a better target for an intervention than friend support. 
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+```{r init, include = FALSE}
+## Initialize and Import
+# load packages
+library(tidyverse)
+library(corrplot)
+library(haven)
+library(knitr)
+library(psych)
+library(stats)
+library(gtools)
+
+# load data
+fas <- read_spss("C:/Users/Greg/Documents/Winter 2017/Quantitative Methods/Midterm/fasw1icpsr.sav")
+# fas <- read_spss("C:/Users/gbushman/Downloads/fasw1icpsr.sav")
+
+fas_age <- read_spss("C:/Users/Greg/Documents/Winter 2017/Quantitative Methods/Midterm/fasw1icpsr-age.sav")
+# fas_age <- read_spss("C:/Users/gbushman/Downloads/fasw1icpsr.age.sav")
+
+# join age to other data
+fas <- left_join(fas, fas_age)
+
+# clean up data
+colnames(fas) <- colnames(fas) %>% tolower()
+
+# filter data
+fas <- fas %>%
+  select(w1a2, w1a3, w1b1, ageiw1, # demographics
+         w1c3a:w1c3d, w1c3f,       # parental support
+         w1c1a:w1c1e,              # friend support
+         w1g1a:w1g1l,              # mental health
+         w1d1a:w1d1h)              # John Henryism
+
+# rename columns
+fas <- fas %>%
+  rename(
+    "sex"   = w1a2,
+    "race"  = w1a3,
+    "age"   = ageiw1,
+    "marit" = w1b1
+  )
+
+# make columns factors/numeric
+fas       <- data.frame(fas[,1:3], lapply(fas[,4:34], as.numeric))
+fas$sex   <- factor(fas$sex, levels = c(1, 2), labels = c("Male", "Female"))
+fas$race  <- factor(fas$race, levels = c(1, 2, 3), labels = c("Black", "White", "Mixed"))
+fas$marit <- factor(fas$marit, levels = c(1:4), labels = c("Married", "Separated", "Divorced", "Never Married"))
+```
+
+\newline
+
+**Question 1: Do we have acceptable scale measures for both parental social support and friendship social support?**
+
+*Parental Support Items Descriptive Statistics*
+
+```{r q1.a1}
+fas %>% 
+  select(w1c3a:w1c3d, w1c3f) %>%
+  gather(key = Item, value = value) %>%
+  group_by(Item) %>%
+  summarise(
+    Mean = mean(value, na.rm = T),
+    SD   = sd(value, na.rm = T),
+    Min  = min(value, na.rm = T),
+    Max  = max(value, na.rm = T)
+  ) %>%
+  kable(digits = 2)
+```
+
+*Friend Support Items Descriptive Statistics*
+
+```{r q1.a2}
+fas %>% 
+  select(w1c1a:w1c1e) %>%
+  gather(key = Item, value = value) %>%
+  group_by(Item) %>%
+  summarise(
+    Mean = mean(value, na.rm = T),
+    SD   = sd(value, na.rm = T),
+    Min  = min(value, na.rm = T),
+    Max  = max(value, na.rm = T)
+  ) %>%
+  kable(digits = 2)
+```
+
+In both the parental and friend support scales, items have similar means, standard deviations, and ranges. This is a good sign since, ultimately, it will be necessary to create an aggregate score for parental support and for friend support to be used in regression models. Given the consistency of these summary statistics across scale items, it is possible that these scales will also demonstrate high reliability. 
+
+*Reliability*
+
+```{r q1.b, include = F}
+# reliability of parental support
+alpha(cov(fas %>% select(w1c3a:w1c3d, w1c3f), use = "complete.obs"))
+
+# reliability of friend support
+alpha(cov(fas %>% select(w1c1a:w1c1e), use = "complete.obs"))
+
+# reliability of social support
+alpha(cov(fas %>% select(w1c3a:w1c3d, w1c3f, w1c1a:w1c1e), use = "complete.obs"))
+```
+
+The parental support scale has an alpha coeffecient of 0.89, while the friend support scale has an alpha coeffecient of 0.82. This means that both of these scales are highly reliable. Dropping any single item from either scale has virtually no effect on the scale's reliability measure; therefore, no items need to be dropped from either scale. Given that the scales show high reliability and the items are all highly consistent, I would trust using either of these scales for research purposes. 
+
+*Factor Analysis*
+
+```{r q1.c}
+# # principle component analysis - social support
+# fas.pca <- princomp(~., data = fas %>% select(w1c3a:w1c3d, w1c3f, w1c1a:w1c1e))
+# summary <- summary(fas.pca)
+# plot(fas.pca)
+# 
+# # factor analysis - social support
+# fas.fa <- factanal(~., data = fas %>% select(w1c3a:w1c3d, w1c3f, w1c1a:w1c1e), factor = 2, rotation = "varimax", scores = "none")
+# print(fas.fa)
+
+# principle component analysis - parental support
+fasps.pca <- princomp(~., data = fas %>% select(w1c3a:w1c3d, w1c3f))
+summary <- summary(fasps.pca)
+plot(fasps.pca)
+
+# factor analysis - parental support
+fasps.fa1 <- factanal(~., data = fas %>% select(w1c3a:w1c3d, w1c3f), factor = 1, rotation = "varimax", scores = "none")
+print(fasps.fa1)
+
+fasps.fa2 <- factanal(~., data = fas %>% select(w1c3a:w1c3d, w1c3f), factor = 2, rotation = "varimax", scores = "none")
+print(fasps.fa2)
+
+# principle component analysis - friend support
+fasfs.pca <- princomp(~., data = fas %>% select(w1c1a:w1c1e))
+summary <- summary(fasfs.pca)
+plot(fasfs.pca)
+
+# factor analysis - friend support
+fasfs.fa1 <- factanal(~., data = fas %>% select(w1c1a:w1c1e), factor = 1, rotation = "varimax", scores = "none")
+print(fasfs.fa1)
+
+fasfs.fa2 <- factanal(~., data = fas %>% select(w1c1a:w1c1e), factor = 2, rotation = "varimax", scores = "none")
+print(fasfs.fa2)
+```
+
+The principle component analysis and factor analysis for each of the social support subscales shows that there is really only one factor being measured by each scale. All items within each scale load better on to one factor than on to two. In both cases, the chi square statistic for a one factor solution is much higher than for a two factor solution. This suggests that these scales truly are unidimensional.  
+
+*Create Summary Measures of Social Support*
+
+```{r q1.d, echo = T}
+fas$ps <- rowMeans(fas %>% select(w1c3a:w1c3d, w1c3f))
+fas$fs <- rowMeans(fas %>% select(w1c1a:w1c1e))
+```
+
+Given the high reliability of the two social support subscales, and the fact that all of the items within the subscales load well onto the same factor, I made two summary measures of social support using all the items available. One measure is for parental support and one measures is for friend support. I did not drop any items when making these scales because there was no need to. 
+
+\newline
+
+**Question 2: What are the general descriptive statistics for the two scales?  Do we see differences in either form of social support by demographics?**
+
+*Social Support Subscales Descriptive Statistics*
+
+```{r q2.a}
+fas %>%
+  select(ps, fs) %>%
+  rename(
+    "Parental Support" = ps,
+    "Friend Support"   = fs
+  ) %>%
+  gather(key = Scale, value = value) %>%
+  group_by(Scale) %>%
+  filter(!is.na(value) & value > 0) %>%
+  summarise(
+    N    = n(),
+    Mean = mean(value, na.rm = T),
+    SD   = sd(value, na.rm = T),
+    Min  = min(value, na.rm = T),
+    Max  = max(value, na.rm = T)
+  ) %>%
+  kable(digits = 2)
+```
+
+The means and standard deviations of these two scales are what I would expect them to be. They are normally distributed, and there are very low rates of missingness. Therefore, I have no concerns about using these data. 
+
+*Social Support Subscales by Sex*
+
+```{r q2.b1}
+# plot parental support by sex
+ggplot(fas, aes(ps, fill = sex, colour = sex)) +
+  geom_density(alpha = 0.1) +
+  labs(x = "Mean Parental Support", y = "Density") +
+  theme_minimal()
+
+# t-test
+t.pssex <- t.test(ps ~ sex, data = fas)
+
+# plot friend support by sex
+ggplot(fas, aes(fs, fill = sex, colour = sex)) +
+  geom_density(alpha = 0.1) +
+  labs(x = "Mean Friend Support", y = "Density") +
+  theme_minimal()
+
+# t-test
+t.fssex <- t.test(fs ~ sex, data = fas)
+```
+
+T-tests show that there are statistically significant differences between men and women with regard to parental support (p < 0.001), and friend support (p < 0.001). Mean parental support is greater among men (4.02) than women (3.78), while mean friend support is greater among women (3.37) than men (2.90).
+
+*Social Support Subscales by Race*
+
+```{r q2.b2}
+# plot parental support by race
+ggplot(fas, aes(ps, fill = race, colour = race)) +
+  geom_density(alpha = 0.1) +
+  labs(x = "Mean Parental Support", y = "Density") +
+  theme_minimal()
+
+# ANOVA
+fit.psrace <- aov(ps ~ race, data = fas)
+summary(fit.psrace)
+TukeyHSD(fit.psrace)
+
+# plot friend support by race
+ggplot(fas, aes(fs, fill = race, colour = race)) +
+  geom_density(alpha = 0.1) +
+  labs(x = "Mean Friend Support", y = "Density") +
+  theme_minimal()
+
+# ANOVA
+fit.fsrace <- aov(fs ~ race, data = fas)
+summary(fit.fsrace)
+TukeyHSD(fit.fsrace)
+```
+
+ANOVA shows that there are slight, but significant differences in parental support between racial groups (p = 0.048). Post-hoc tests, however, show no significant pairwise differences between racial groups, although the difference in means between white and black study participants does appear to be the greatest. There are no such significant differences between racial groups with respect to friend support (p = 0.116).
+
+*Social Support Subscales by Age*
+
+```{r q2.c}
+# plot parental support by age
+fas %>%
+  select(ps, fs, age) %>%
+  gather(key = scale, value = value, -age) %>%
+  ggplot(aes(y = value, x = age, color = factor(scale, levels = c("fs", "ps"), labels = c("Friend Support", "Parental Support")))) +
+  geom_smooth(method = "lm", se = F) +
+  theme_minimal() +
+  coord_cartesian(ylim = c(1, 5)) +
+  labs(x = "Age", y = "Support Value", color = "")
+
+# linear regression
+fit.psage <- lm(ps ~ age, data = fas)
+summary(fit.psage)
+
+fit.fsage <- lm(fs ~ age, data = fas)
+summary(fit.fsage)
+```
+
+Age is not a significant correlate of parental support (p = 0.717). Parental support appears to remain relatively consistent, even as age increases. Friend support, on the other hand, decreases by 0.11 for every 1 year increase in age. This correlation, between age and friend support, is significant (p = 0.030).
+
+*Social Support Subscales by Parent Marital Status*
+
+```{r q2.d}
+# plot parental support by race
+fas %>%
+  # prep frame
+  select(ps, fs, marit) %>%
+  gather(key = scale, value = value, -marit) %>%
+  group_by(scale, marit) %>%
+  summarise(
+    mean = mean(value, na.rm = T)
+  ) %>%
+  filter(!is.na(marit)) %>%
+  # plot
+  ggplot(aes(y = mean, x = marit, fill = factor(scale, levels = c("fs", "ps"), labels = c("Friend Support", "Parental Support")))) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_minimal() +
+  coord_cartesian(ylim = c(1, 5)) +
+  labs(x = "Parent Marital Status", y = "Mean Support Value", fill = "")
+
+# ANOVA
+fit.psmarit <- aov(ps ~ marit, data = fas)
+summary(fit.psmarit)
+
+fit.fsmarit <- aov(fs ~ marit, data = fas)
+summary(fit.fsmarit)
+```
+
+The marital status of an adolescent's biological parents does not appear to be significantly correlated with parental support (p = 0.210) or friend support (p = 0.172).
+
+\newline
+
+**Question 3: Are the social support scales associated with general mental health?**
+
+*Create Mental Health Scale*
+
+```{r q3.a1, include = T}
+fas$mh <- rowMeans(fas %>% select(w1g1a:w1g1l))
+```
+
+```{r q3.a2}
+# reliability of mental health
+alpha(cov(fas %>% select(w1g1a:w1g1l), use = "complete.obs"))
+```
+
+The reliability of the mental health scale is high (alpha  = 0.87) and removing any single item of the scale does not change the reliability. This suggests that this is a highly reliable scale. 
+
+*Test for Correlations*
+
+```{r q3.b}
+corrplot(cor(fas %>% select(mh, fs, ps), use = "complete.obs"), method = "square")
+
+# # correlations
+# cor.test(fas$mh, fas$ps)
+# cor.test(fas$mh, fas$fs)
+# cor.test(fas$fs, fas$ps)
+```
+
+Relationship | Correlation | 95% CI       | T Value | P Value
+-------------|-------------|--------------|---------|-----------
+MH, PS       | -0.20       | -0.27, -0.14 | -6.08   | <0.001***
+MH, FS       | 0.08        | 0.01, 0.14   | 2.20    | 0.028*
+PS, FS       | 0.22        | 0.16, 0.29   | 6.65    | <0.001***
+
+While the correlations between poor mental health, parental support, and friend support are not huge, they are highly significant. Poor mental health is most highly correlated with parental support; however, the correlation is indirect. As parental support decreases, mental health problems increase. Friend support, however, appears to be directly correlated with poor mental health--that is, as friend support increases, poor mental health increases as well. 
+
+*Multiple Regression Controlling for Demographic Characteristics, Only*
+
+```{r q3.c1}
+# center variables
+fas_z <- fas %>% 
+  select(sex, race, marit, age, ps, fs, mh)
+  
+fas_z <- data.frame(fas_z[1:3], lapply(fas_z[4:7], function (x) {
+  scale(x, center = T, scale = T) 
+    })
+  )
+
+# run regression
+reg.dem <- lm(mh ~ age + race + sex + marit, data = fas)
+summary(reg.dem)
+
+reg.dem <- lm(mh ~ age + race + sex + marit, data = fas_z)
+summary(reg.dem)
+```
+
+In this regression, which examines demographic predictors of poor mental health, only age and sex were significant. Specifically, a 1 unit increase in age was indicative of a 0.09 point increase in the measure of poor mental health (p = 0.004). Being female was indicative of a 0.42 increase in the measure of poor mental health, when compared to being male (p < 0.001). 
+
+*Multiple Regression Controlling for Everything*
+
+```{r q3.c2}
+reg.all1 <- lm(mh ~ age + race + sex + marit + ps + fs, data = fas)
+summary(reg.all1)
+
+reg.all2 <- lm(mh ~ age + race + sex + marit + ps + fs, data = fas_z)
+summary(reg.all2)
+```
+
+In this regression model, which looks at demographic predictors of poor mental health as well as social support, age, sex, parental support, and friend support were all significant predictors of mental health. Again, a 1 unit increase in age was indicative of a 0.10 unit increase in poor mental health (p = 0.004). Being female was indicative of a 0.3 unit increase in poor mental health, when compared to men (p < 0.001). And a one unit increase in friend support was predictive of a 0.08 unit increase in poor mental health (p = 0.015), while a 1 unit increase in parental support was predictive of a 0.21 unit decrease in poor mental health (p < 0.001). 
+Centering the continuous variables for this regression analysis by calculating z-scores did not yeild significantly different results. The models run with standardized variables and unstandardized variables were exactly the same.  
+
+*Examining Residuals/Checking Assumptions*
+
+```{r q3.d}
+plot(reg.all1)
+```
+
+The diagnostic plots generated from the residuals of this regression model show that some of the assumptions about regression may be violated in this model. For example, the Q-Q plot shows that the residuals may not be totally normally distributed. However, the scale location plot seems to support the idea that the data used in this regression demonstrated homoscedasticity, and the residuals vs leverage plot supports the assumption that there were no major outliers. 
+
+\newline
+
+**Question 4: Are associations between mental health and social support moderated by John Henryism?**
+
+*Examine John Henryism Scale*
+
+```{r q4.a1, include = T}
+fas$jh <- rowMeans(fas %>% select(w1d1a:w1d1h))
+```
+
+```{r q4.a2, eval = F}
+# reliability of mental health
+alpha(cov(fas %>% select(w1d1a:w1d1h), use = "complete.obs"))
+
+# principle component analysis
+princomp(~., fas %>% select(w1d1a:w1d1h)) %>% plot()
+
+# factor analysis
+factanal(~., data = fas %>% select(w1d1a:w1d1h), factor = 1, rotation = "varimax", scores = "none") %>% print()
+```
+
+```{r q4.b}
+# quantcut john henryism variable
+fas$jhf <- quantcut(fas$jh, q = 3, na.rm = T)
+fas$jhf <- factor(fas$jhf, levels = c("[2,3.88]", "(3.88,4.5]", "(4.5,5]"), 
+                  labels = c("Low", "Medium", "High"))
+
+# parental support x mental health and John Henryism
+ggplot(fas %>% filter(!is.na(jhf)), aes(x = ps, y = mh, color = jhf)) +
+  geom_smooth(method = "lm", se = F) +
+  theme_minimal() +
+  coord_cartesian(ylim = c(1.25, 2.25)) +
+  labs(x = "Parental Support", y = "Mental Health", color = "John Henryism")
+
+# friend support x mental health and John Henryism
+ggplot(fas %>% filter(!is.na(jhf)), aes(x = fs, y = mh, color = jhf)) +
+  geom_smooth(method = "lm", se = F) +
+  theme_minimal() +
+  coord_cartesian(ylim = c(1, 2)) +
+  labs(x = "Friend Support", y = "Mental Health", color = "John Henryism")
+```
+
+*Multiple Regression with John Henryism*
+
+```{r q4.c1}
+# center John Henryism
+fas_z <- fas %>% 
+  select(sex, race, marit, age, ps, fs, mh, jh)
+  
+fas_z <- data.frame(fas_z[1:3], lapply(fas_z[4:8], function (x) {
+  scale(x, center = T, scale = T) 
+    })
+  )
+
+# John Henryism as main effect
+reg.jhme <- lm(mh ~ age + race + sex + marit + ps + fs + jh, data = fas_z)
+summary(reg.jhme)
+```
+
+When a regression model is fit with John Henryism as a main effect, John Henryism is not significant. Again, only age, sex, parental support, and friend support are significant in this model. The model which does not include John Henryism as a predictor has a slighly higher R-squared value and a slighly lower p-value suggesting that the model without it is a better, more parsimonious solution. 
+
+```{r q4.c2}
+# John Henryism as interaction term with friend support
+reg.jhit1 <- lm(mh ~ age + race + sex + marit + ps + fs*jh, data = fas_z)
+summary(reg.jhit1)
+
+# John Henryism as interaction term with parental support
+reg.jhit2 <- lm(mh ~ age + race + sex + marit + ps*jh + fs, data = fas_z)
+summary(reg.jhit2)
+```
+
+When a regression model is fit with John Henryism as an interaction term, John Henryism is still not significant, nor is the interaction term. This does not change based on whether John Henryism is treated as a moderator of parental support or friend support: neither interaction term is significant.
+
+*Three-way Interaction Between Variables*
+
+```{r q4.d}
+# John Henryism as interaction term with friend support and parental support
+reg.jhit3 <- lm(mh ~ age + race + sex + marit + ps*jh*fs, data = fas_z)
+summary(reg.jhit3)
+```
+
+When a regression model is fit which includes a three-way interaction term between friend support, parental support, and John Henryism, the interaction term between all three is significant; however, only at the 90% confidence level. In this model, the interaction term between parental support and John Henryism has also become significant. This means that the effect of parental support on poor mental health is moderated by John Henryism. 
+
+**Question 5.  Would you recommend proceeding with a social support intervention to prevent mental health in the area schools?**
+
+Given these data and the results of these analyses, I would not recommend proceeding with a social support intervention aimed at improving mental health in the area schools. Firstly, these analyses show that there are significant differences in mental health outcomes, parental support, and friend support based on sex. Compared to males, females report significantly higher friend support, but lower parental support. This is potentially problematic because regression analyses show that increasing parental support is a predictor for better mental health status, while increasing friend support is a predictor for slightly worse mental health status. Sex is also a significant predictor of mental health status. Being female results in significantly worse mental health than being male. Already, this seems to suggest that an intervention aimed at increasing social support to improve mental health may not be addressing the most population most vulnerable to poor mental health status. Potentially, developing a more targeted intevention aimed at increasing social support to improve mental health in female students, specifically, would be more productive. Further, the fact that increasing parental support is associated with significant improvements in mental health, while increasing friend support is actually associated with decreases in mental health, may suggest that a school setting is not the best environment in which to implement a program aimed at improving mental health, given that there is not strong evidence that increased friend support really make much of an impact on mental health. Instead, it may be better to implement some sort of intervention aimed at enhancing the parental support that adolescents (and particularly female adolescents) receive. While it does seem counterintuitive that increasing friend support should be associated with worse mental health outcomes, this may not be the full story. Because not all of the assumptions of regression were perfectly met within this population, it is possible that collecting more data would show that friend support actually has no effect on mental health status. Alternately, there may be variables that this survey did not measure that may be confounding or moderating the relationship between friend support and mental health. Therefore, it may be important to collect more data from adolescents in the area before designing an intervention program to improve mental health by increasing social support. 
