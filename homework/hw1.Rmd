@@ -1,0 +1,111 @@
+---
+title: "Homework 1"
+author: "Gregory Bushman"
+output: word_document
+---
+Homework 1
+
+**Research Question**
+
+The purpose of the current study is to determine the distribution of 1) alcohol use over the past 30 days; 2) depression symptoms ; and 3) factors related to self-acceptance, all among wave 1 participants of the Flint Adolescent Study. 
+
+**Methods**
+
+RStudio was used to prepare a series of figures related to the distributions of variables related to the constructs of interest. A histogram was used to display the distribution of alcohol usage over the past 30 days; stem and leaf plots were used to display the distribution of depression symptoms; and box plots were used to display the distribution of factors related to self-acceptance. 
+
+**Results**
+
+These results suggest that heavy alcohol use is not the norm in this population. The most common response of was of no alcohol use in the past 30 days, while 40+ drinks in the past 30 days was the least common response. Unfortunately, however, there are issues with missing data with this variable. Only 43.6% (N = 371) of participants have responses recorded for this question. 
+
+These results also suggest that most people in this sample do not experience depression symptoms and have high levels of self-acceptance. Very few people reported experiencing symtoms of depression. Additionally, almost everyone in this sample reported that they were happy with themself and liked themself. The majority of people also responded that they were pleased with themself and believed themself to be a success. These factors indicate that participants in the FAS, generally, experience low rates of depression and high rates of self-acceptance. 
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+```{r initialize, include = FALSE}
+# load packages
+library(rmarkdown)
+library(knitr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# import data
+fas <- read.csv("C:/Users/Greg/Documents/Winter 2017/Quantitative Methods/fas_wave1.csv", stringsAsFactors = FALSE)
+```
+
+**Problem 1**
+
+```{r}
+# make plot
+h <- fas %>%
+  ggplot(aes(x = i4c)) +
+  geom_histogram() +
+  theme_minimal() +
+  labs(x = "i4c Responses", y = "Count of Responses")
+
+# A histogram of Wave 1 Alcohol use in the past 30 days
+h
+```
+
+Response | Drinks in Past 30 Days
+---------|-----------------------
+1        | 0
+2        | 1-2
+3        | 3-5
+4        | 6-9
+5        | 10-19
+6        | 20-39
+7        | 40+
+
+**Problem 2**
+
+```{r}
+# thoughts of ending your life
+stem(fas$g1b, scale = 0.2)
+
+# feeling lonely
+stem(fas$g1d, scale = 0.2)
+
+# feeling blue
+stem(fas$g1e, scale = 0.2)
+
+# loss of interest
+stem(fas$g1f, scale = 0.2)
+
+# feeling hopeless
+stem(fas$g1h, scale = 0.2)
+
+# feeling worthless
+stem(fas$g1l, scale = 0.2)
+```
+
+**Problem 3**
+
+```{r}
+# create frame for box plot
+sa <- fas %>%
+  select(d2a, d2d, d2f, d2m) %>%
+  gather(key = "Symptom", value = "Response")
+
+# create box plot
+bp <- ggplot(sa, aes(x = factor(Symptom), y = Response, color = factor(Symptom))) + geom_boxplot() +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(x = "Symptom")
+
+# boxplot of self-acceptance
+bp
+```
+
+Symptom Code | Item
+-------------|-----------------------
+d2a          | happy(1)/unhappy(5) with myself
+d2d          | regard myself as failure(1)/sucess(5)
+d2f          | discouraged(1)/pleased(5) with myself
+d2m          | like(1)/dislike(5) myself
+
+**Discussion**
+
+The results suggest that participants in the FAS are not generally heavy alcohol users, experience low rates of depression, and experience high levels of self-acceptance; however, the ways in which these results were determined were not imperfect. Firstly, the histogram of alcohol use in the past 30 days does not indicate how much data is missing, which is a serious limitation to how decisive the interpretation of these data can be. Moreover, the fact that less than 50% of participants responded to that question casts doubts about the value of that variable. It may be that participants who did heavily use alcohol were disproportionately less likely to respond to the question because of fears about that data getting them in trouble. Secondly, the stem and leaf plots are not very useful and are difficult to interpret. Because the "leafs" are cut off after a certain point, this display is not very useful for determining how much more prevalant one response is in the data than another. A bar chart would have been a much better way to visualize the data about depression symptoms. Lastly, the box plots are not very intuitive to interpret because the underlying data have a very limited range and only the integers between 1 and 5 are values that are present in the data. Again, a bar chart would have been a better way of visualizing the distribution of responses. 
