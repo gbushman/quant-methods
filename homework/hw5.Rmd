@@ -1,0 +1,142 @@
+---
+title: "Bushman.HW5"
+output: word_document
+---
+
+**Introduction**
+
+I predict that race will not be significant factor in explaining the relationship between parental support and anxiety.  
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(warnings = F, messages = F)
+```
+
+```{r, include = FALSE}
+# Initialize and Import
+# load packages
+library(tidyverse)
+library(gtools)
+library(psych)
+library(psy)
+library(car)
+library(corrplot)
+library(foreign)
+
+# open R data
+load("C:/Users/Greg/Documents/Winter 2017/Quantitative Methods/fas.rda")
+fas <- da34598.0001
+
+# open age data
+fas.age <- read.spss("C:/Users/Greg/Downloads/fasw1icpsr.age.sav", 
+  use.value.labels=TRUE, max.value.labels=Inf, to.data.frame=TRUE)
+
+# join data
+fas <- left_join(fas, fas.age, by = "RESPID")
+```
+
+```{r, include = FALSE}
+# Prep Data
+# colnames to lower
+colnames(fas) <- tolower(colnames(fas))
+
+# subset relevant columns
+fas_sub <- fas %>%
+  select(
+    w1c3a, w1c3b, w1c3c, w1c3d, w1c3f,        # parental support
+    w1g1a, w1g1c, w1g1g, w1g1i, w1g1j, w1g1k, # anxiety
+    ageiw1,                                   # age
+    w1a2,                                     # sex
+    w1a3                                      # race
+  )
+
+# make numeric
+fas_sub <- data.frame(lapply(fas_sub[, 1:12], as.numeric), fas_sub[, 13:14])
+
+# make variables
+fas_sub <- fas_sub %>%
+  mutate(
+    pss = rowMeans(.[, c("w1c3a", "w1c3b", "w1c3c", "w1c3d", "w1c3f")], na.rm = T),
+    anx = rowMeans(.[, c("w1g1a", "w1g1c", "w1g1g", "w1g1i", "w1g1j", "w1g1k")], na.rm = T)
+  )
+```
+
+**Examine Linear Associations**
+
+Based on the correlation matrix, it seems that there are not any very strong correlations between the variables in this study. 
+
+```{r}
+fas_sub <- fas_sub %>%
+  select(ageiw1, pss, anx, w1a2, w1a3) %>%
+  rename(
+    "age"  = ageiw1,
+    "race" = w1a3,
+    "sex"  = w1a2
+  )
+
+# describe
+variables <- c("age", "pss", "anx")
+lapply(fas_sub[, variables], describe)
+
+# correlation
+corrplot(cor(fas_sub[variables], use = "complete.obs"), method = "square")
+```
+
+**Plots**
+
+These plots show that there are not very great differences in the relationship between parental support and anxiety based on age, sex, or race. The confidence bands for these sub-groups overlap in ways that makes it seem like these varibles (age, sex, and race) do not significantly interact with parental support to explain anxiety. 
+
+```{r}
+# anxiety and parental support by sex
+by_sex <- ggplot(fas_sub, aes(pss, anx, color = sex)) + 
+  #geom_point() +
+  geom_smooth(method="lm") +
+  theme_minimal()
+
+by_sex
+
+# anxiety and parental support by race
+by_race <- ggplot(fas_sub, aes(pss, anx, color = race)) + 
+  #geom_point() +
+  geom_smooth(method="lm") +
+  theme_minimal()
+
+by_race
+
+# anxiety and parental support by age
+fas_sub$agecuts <- quantcut(fas_sub$age, na.rm=TRUE)
+
+by_age <- ggplot(fas_sub, aes(pss, anx, color = agecuts)) + 
+  #geom_point() +
+  geom_smooth(method="lm") +
+  theme_minimal()
+
+by_age
+```
+
+**Regression**
+
+Regression model one treats race and parental support as predictors of anxiety. The model shows that parental support is a significant predictor of anxiety, with the measure of anxiety decreasing by 0.08, with every 1 point increase in parental support. In this model, race is not significant. Model two examines the interaction of parental support and race on anxiety. In this model, parental support is still a significant predictor of anxiety, while the interactions between race and parental support are not. Here, for every one point increase in parental support, the measure of anxiety decreases by 0.09 points. Model three examines the interaction between parental support and anxiety in African American populations. Here, the findings are the same as with model two, lending support to the idea that race does not significantly interact with parental support to influence anxiety levels. Lastly, a comparison of model one and model two shows that there is not a significant difference between the model that exmained the interaction effects of race and parental support and the model that did not. 
+
+```{r}
+# z score
+fas_sub$pssz <- scale(fas_sub$pss, center = T, scale = T)
+
+# regress anxiety on parental support and race
+reg_1 <- lm(anx ~ race + pss, data = fas_sub)
+summary(reg_1)
+
+# regress anxiety on parental support and race, with interation term
+reg_2 <- lm(anx ~ race*pssz + pssz, data = fas_sub)
+summary(reg_2)
+
+# regress anxiety on parental support, subsetting African Americans
+reg_3 <- lm(anx ~ pss, data = fas_sub, subset = race == "(1) Black or African American")
+summary(reg_3)
+
+# ANOVA
+anova(reg_1, reg_2)
+```
+
+**Conclusion**
+
+In conclusion, race does not significantly interact with parental support to predict levels of anxiety in this population. 
